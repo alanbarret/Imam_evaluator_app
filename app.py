@@ -58,18 +58,26 @@ def analyze_audio(audio_file):
         spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
         tone_brightness = np.mean(spectral_centroids)
         
+        # Rhythm analysis (using tempo)
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        
+        # Energy analysis
+        energy = np.mean(librosa.feature.rms(y=y)[0])
+        
         # Normalize scores to a 0-100 scale
         pitch_score = min(100, max(0, (pitch - 50) / 400 * 100))
         tone_score = min(100, max(0, tone_brightness / 5000 * 100))
+        rhythm_score = min(100, max(0, tempo / 2))
+        energy_score = min(100, max(0, energy * 1000))
         
-        overall_score = (pitch_score + tone_score) / 2
+        overall_score = (pitch_score + tone_score + rhythm_score + energy_score) / 4
         
         # Remove the temporary file
         os.remove("temp_audio.mp3")
         
-        return overall_score, pitch_score, tone_score
+        return overall_score, pitch_score, tone_score, rhythm_score, energy_score
     except Exception as e:
-        return f"An error occurred during audio analysis: {str(e)}", None, None
+        return f"An error occurred during audio analysis: {str(e)}", None, None, None, None
 
 # Function to compare texts and generate HTML with colored differences using OpenAI
 def compare_texts(ideal_text, comparison_text):
@@ -90,7 +98,7 @@ def compare_texts(ideal_text, comparison_text):
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are a text comparison assistant. Compare the following two text chunks, where the first is the ideal text and the second is the text to be compared. Highlight the differences and provide feedback on how the second text can be improved to match the ideal text. If the audio doesn't match the ideal text then return a message that says 'The audio does not match the ideal text'"},
+                    {"role": "system", "content": "You are a text comparison assistant. Compare the following two text chunks, where the first is the ideal text and the second is the text to be compared. Highlight the differences and provide feedback on how the second text can be improved to match the ideal text."},
                     {"role": "user", "content": f"Ideal text chunk: {ideal_chunk}\nComparison text chunk: {comparison_chunk}"}
                 ]
             )
@@ -137,12 +145,16 @@ def compare_audio_scores(ideal_scores, comparison_scores):
     overall_diff = comparison_scores[0] - ideal_scores[0]
     pitch_diff = comparison_scores[1] - ideal_scores[1]
     tone_diff = comparison_scores[2] - ideal_scores[2]
+    rhythm_diff = comparison_scores[3] - ideal_scores[3]
+    energy_diff = comparison_scores[4] - ideal_scores[4]
     
-    return overall_diff, pitch_diff, tone_diff
+    return overall_diff, pitch_diff, tone_diff, rhythm_diff, energy_diff
 
 # Function to create a comparison chart
 def create_comparison_chart(ideal_scores, comparison_scores):
-    categories = ['Overall', 'Pitch', 'Tone']
+    ideal_scores = [float(score) for score in ideal_scores]
+    comparison_scores = [float(score) for score in comparison_scores]
+    categories = ['Overall', 'Pitch', 'Tone', 'Rhythm', 'Energy']
     
     fig = go.Figure(data=[
         go.Bar(name='Ideal', x=categories, y=ideal_scores),
@@ -153,8 +165,24 @@ def create_comparison_chart(ideal_scores, comparison_scores):
         title='Audio Score Comparison',
         xaxis_title='Categories',
         yaxis_title='Scores',
-        barmode='group'
+        barmode='group',
+        height=500,  # Increase the height of the chart
+        width=700    # Increase the width of the chart
     )
+    
+    # Add data labels on top of each bar
+    for i, (ideal, comparison) in enumerate(zip(ideal_scores, comparison_scores)):
+        fig.add_annotation(x=categories[i], y=ideal,
+                           text=f"{ideal:.2f}",
+                           showarrow=False,
+                           yshift=10)
+        fig.add_annotation(x=categories[i], y=comparison,
+                           text=f"{comparison:.2f}",
+                           showarrow=False,
+                           yshift=10)
+    
+    # Ensure y-axis starts from 0 and goes up to 100
+    fig.update_yaxes(range=[0, 100])
     
     return fig
 
@@ -182,12 +210,12 @@ def main():
                 # Transcribe and analyze ideal audio
                 st.write("Transcribing and analyzing ideal audio...")
                 ideal_text = transcribe_audio(ideal_audio)
-                ideal_overall, ideal_pitch, ideal_tone = analyze_audio(ideal_audio)
+                ideal_overall, ideal_pitch, ideal_tone, ideal_rhythm, ideal_energy = analyze_audio(ideal_audio)
                 
                 # Transcribe and analyze comparison audio
                 st.write("Transcribing and analyzing comparison audio...")
                 comparison_text = transcribe_audio(comparison_audio)
-                comparison_overall, comparison_pitch, comparison_tone = analyze_audio(comparison_audio)
+                comparison_overall, comparison_pitch, comparison_tone, comparison_rhythm, comparison_energy = analyze_audio(comparison_audio)
                 
                 # Format texts for Arabic
                 formatted_ideal_text = format_arabic_text(ideal_text)
@@ -213,15 +241,15 @@ def main():
                 #     st.markdown(f"Tone: {comparison_tone:.2f}")
                 
                 # Compare audio scores
-                overall_diff, pitch_diff, tone_diff = compare_audio_scores(
-                    (ideal_overall, ideal_pitch, ideal_tone),
-                    (comparison_overall, comparison_pitch, comparison_tone)
+                overall_diff, pitch_diff, tone_diff, rhythm_diff, energy_diff = compare_audio_scores(
+                    (ideal_overall, ideal_pitch, ideal_tone, ideal_rhythm, ideal_energy),
+                    (comparison_overall, comparison_pitch, comparison_tone, comparison_rhythm, comparison_energy)
                 )
                 
                 # Create and display comparison chart
                 chart = create_comparison_chart(
-                    [ideal_overall, ideal_pitch, ideal_tone],
-                    [comparison_overall, comparison_pitch, comparison_tone]
+                    [ideal_overall, ideal_pitch, ideal_tone, ideal_rhythm, ideal_energy],
+                    [comparison_overall, comparison_pitch, comparison_tone, comparison_rhythm, comparison_energy]
                 )
                 st.plotly_chart(chart)
                 
@@ -229,6 +257,8 @@ def main():
                 st.markdown(f"Overall Difference: {float(overall_diff):.2f} ({'higher' if float(overall_diff) > 0 else 'lower'})")
                 st.markdown(f"Pitch Difference: {float(pitch_diff):.2f} ({'higher' if float(pitch_diff) > 0 else 'lower'})")
                 st.markdown(f"Tone Difference: {float(tone_diff):.2f} ({'higher' if float(tone_diff) > 0 else 'lower'})")
+                st.markdown(f"Rhythm Difference: {float(rhythm_diff):.2f} ({'higher' if float(rhythm_diff) > 0 else 'lower'})")
+                st.markdown(f"Energy Difference: {float(energy_diff):.2f} ({'higher' if float(energy_diff) > 0 else 'lower'})")
                 
                 # Compare texts and display similarity
                 if not ideal_text.startswith("An error occurred") and not comparison_text.startswith("An error occurred"):
