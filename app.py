@@ -10,8 +10,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 import plotly.graph_objects as go
-
-
+import difflib
 
 api_key = st.secrets["OPENAI_API_KEY"]
 
@@ -52,7 +51,8 @@ def analyze_audio(audio_file):
         
         # Pitch analysis
         pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
-        pitch = np.mean(pitches[magnitudes > np.max(magnitudes) * 0.7])
+        pitch = np.median(pitches[magnitudes > 0])  # Consider all non-zero magnitudes
+        # pitch = pitch if np.isfinite(pitch) else 0  # Handle potential NaN or inf values
         
         # Tone analysis (using spectral centroid as a proxy for "brightness")
         spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
@@ -62,7 +62,7 @@ def analyze_audio(audio_file):
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
         
         # Energy analysis
-        energy = np.mean(librosa.feature.rms(y=y)[0])
+        energy = np.mean(librosa.feature.rms(y=y)[0]) ** 2
         
         # Normalize scores to a 0-100 scale
         pitch_score = min(100, max(0, (pitch - 50) / 400 * 100))
@@ -186,6 +186,22 @@ def create_comparison_chart(ideal_scores, comparison_scores):
     
     return fig
 
+# Function to highlight differences between two texts
+def highlight_diff(text1, text2):
+    d = difflib.Differ()
+    diff = list(d.compare(text1.split(), text2.split()))
+    
+    result = []
+    for word in diff:
+        if word.startswith('  '):
+            result.append(word[2:])
+        elif word.startswith('- '):
+            result.append(f'<span style="background-color: #ffcccb;">{word[2:]}</span>')
+        elif word.startswith('+ '):
+            result.append(f'<span style="background-color: #90EE90;">{word[2:]}</span>')
+    
+    return ' '.join(result)
+
 # Streamlit app
 def main():
     st.title("Imam Evaluator App")
@@ -221,24 +237,27 @@ def main():
                 formatted_ideal_text = format_arabic_text(ideal_text)
                 formatted_comparison_text = format_arabic_text(comparison_text)
                 
-                # # Display texts and scores side by side
-                # col1, col2 = st.columns(2)
-                
-                # with col1:
-                #     st.markdown("**Ideal Audio Transcription:**")
-                #     st.text_area("", value=formatted_ideal_text, height=300, key="ideal_text")
-                #     st.markdown(f"**Ideal Audio Quality Scores:**")
-                #     st.markdown(f"Overall: {ideal_overall:.2f}")
-                #     st.markdown(f"Pitch: {ideal_pitch:.2f}")
-                #     st.markdown(f"Tone: {ideal_tone:.2f}")
-                
-                # with col2:
-                #     st.markdown("**Comparison Audio Transcription:**")
-                #     st.text_area("", value=formatted_comparison_text, height=300, key="comparison_text")
-                #     st.markdown(f"**Comparison Audio Quality Scores:**")
-                #     st.markdown(f"Overall: {comparison_overall:.2f}")
-                #     st.markdown(f"Pitch: {comparison_pitch:.2f}")
-                #     st.markdown(f"Tone: {comparison_tone:.2f}")
+                # Display texts with highlighted differences
+                st.markdown("**Transcription Comparison:**")
+                highlighted_diff = highlight_diff(formatted_ideal_text, formatted_comparison_text)
+                st.markdown("### Transcription Comparison", unsafe_allow_html=True)
+                st.markdown(
+                    """
+                    <div style="border: 1px solid #ddd; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+                        {}
+                    </div>
+                    """.format(highlighted_diff),
+                    unsafe_allow_html=True
+                )
+                st.markdown(
+                    """
+                    <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
+                        <span style="background-color: #ffcccb; padding: 2px 4px; border-radius: 3px;">Red</span>: Removed text
+                        <span style="background-color: #90EE90; padding: 2px 4px; border-radius: 3px; margin-left: 10px;">Green</span>: Added text
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
                 
                 # Compare audio scores
                 overall_diff, pitch_diff, tone_diff, rhythm_diff, energy_diff = compare_audio_scores(
