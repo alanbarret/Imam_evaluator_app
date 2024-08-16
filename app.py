@@ -82,43 +82,35 @@ def analyze_audio(audio_file):
 
 # Function to compare texts and generate HTML with colored differences using OpenAI
 def compare_texts(ideal_text, comparison_text):
+    
     try:
-        from resemblyzer import VoiceEncoder, preprocess_wav
-        from scipy.spatial.distance import cosine
-        import numpy as np
-        import tempfile
-
-        # Save the texts to temporary audio files
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_ideal:
-            temp_ideal.write(text_to_speech(ideal_text).getvalue())
-            ideal_path = temp_ideal.name
-
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_comparison:
-            temp_comparison.write(text_to_speech(comparison_text).getvalue())
-            comparison_path = temp_comparison.name
-
-        # Load and preprocess the audio files
-        wav1 = preprocess_wav(ideal_path)
-        wav2 = preprocess_wav(comparison_path)
-
-        # Initialize the VoiceEncoder
-        encoder = VoiceEncoder()
-
-        # Extract embeddings
-        embed1 = encoder.embed_utterance(wav1)
-        embed2 = encoder.embed_utterance(wav2)
-
-        # Calculate Cosine Similarity
-        similarity = 1 - cosine(embed1, embed2)
-
-        # Calculate Euclidean Distance
-        euclidean_distance = np.linalg.norm(embed1 - embed2)
-
-        # Remove temporary files
-        os.unlink(ideal_path)
-        os.unlink(comparison_path)
-
-        return f"Cosine Similarity: {similarity}", similarity * 100
+        # Split texts into chunks
+        chunk_size = 3000  # Adjust this value based on your needs
+        ideal_chunks = [ideal_text[i:i+chunk_size] for i in range(0, len(ideal_text), chunk_size)]
+        comparison_chunks = [comparison_text[i:i+chunk_size] for i in range(0, len(comparison_text), chunk_size)]
+        
+        comparisons = []
+        for ideal_chunk, comparison_chunk in zip(ideal_chunks, comparison_chunks):
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a text comparison assistant. Compare the following two text chunks, where the first is the ideal text and the second is the text to be compared. Highlight the differences and provide feedback on how the second text can be improved to match the ideal text."},
+                    {"role": "user", "content": f"Ideal text chunk: {ideal_chunk}\nComparison text chunk: {comparison_chunk}"}
+                ]
+            )
+            comparisons.append(response.choices[0].message.content)
+        
+        comparison = "\n".join(comparisons)
+        
+        # Calculate similarity using OpenAI's embedding
+        embedding1 = client.embeddings.create(input=ideal_text, model="text-embedding-3-large").data[0].embedding
+        embedding2 = client.embeddings.create(input=comparison_text, model="text-embedding-3-large").data[0].embedding
+        
+        # Calculate cosine similarity
+        similarity = sum(a*b for a, b in zip(embedding1, embedding2))
+        similarity = similarity / (sum(a*a for a in embedding1)**0.5 * sum(b*b for b in embedding2)**0.5)
+        
+        return comparison, similarity * 100
     except Exception as e:
         return f"An error occurred during comparison: {str(e)}", 0
 
