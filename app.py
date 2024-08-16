@@ -81,11 +81,6 @@ def analyze_audio(audio_file):
 
 # Function to compare texts and generate HTML with colored differences using OpenAI
 def compare_texts(ideal_text, comparison_text):
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        return "Error: OPENAI_API_KEY not found in environment variables.", 0
-    
-    client = OpenAI(api_key=api_key)
     
     try:
         # Split texts into chunks
@@ -239,7 +234,7 @@ def main():
                 
                 # Display texts with highlighted differences
                 st.markdown("**Transcription Comparison:**")
-                highlighted_diff = highlight_diff(formatted_ideal_text, formatted_comparison_text)
+                highlighted_diff = highlight_diff(ideal_text, comparison_text)
                 st.markdown("### Transcription Comparison", unsafe_allow_html=True)
                 st.markdown(
                     """
