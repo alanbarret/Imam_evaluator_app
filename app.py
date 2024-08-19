@@ -89,24 +89,30 @@ import acoustid
 import chromaprint
 
 
-def get_fingerprint(filename: str) -> List[int]:
+def get_fingerprint(file: UploadedFile) -> List[int]:
     """
-    Reads an audio file from the filesystem and returns a
-    fingerprint.
+    Reads an uploaded audio file and returns a fingerprint.
 
     Args:
-        filename: The filename of an audio file on the local
-            filesystem to read.
+        file: An UploadedFile object containing the audio data.
 
     Returns:
         Returns a list of 32-bit integers. Two fingerprints can
         be roughly compared by counting the number of
         corresponding bits that are different from each other.
     """
-    _, encoded = acoustid.fingerprint_file(filename)
-    fingerprint, _ = chromaprint.decode_fingerprint(
-        encoded
-    )
+    # Save the uploaded file to a temporary location
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file.write(file.getvalue())
+        temp_filename = temp_file.name
+
+    try:
+        _, encoded = acoustid.fingerprint_file(temp_filename)
+        fingerprint, _ = chromaprint.decode_fingerprint(encoded)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_filename)
+
     return fingerprint
 
 
