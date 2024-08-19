@@ -66,7 +66,7 @@ def analyze_audio(audio_file):
         energy = np.mean(librosa.feature.rms(y=y)[0]) ** 2
         
         # Normalize scores to a 0-100 scale
-        pitch_score = min(100, max(0, (pitch - 50) / 400 * 100))
+        pitch_score = min(100, max(0, (pitch - 50) / 1000 * 100)) 
         tone_score = min(100, max(0, tone_brightness / 5000 * 100))
         rhythm_score = min(100, max(0, tempo / 2))
         energy_score = min(100, max(0, energy * 1000))
@@ -80,11 +80,69 @@ def analyze_audio(audio_file):
     except Exception as e:
         return f"An error occurred during audio analysis: {str(e)}", None, None, None, None
 
-# Function to compare texts and generate HTML with colored differences using OpenAI
-def compare_texts(ideal_text, comparison_text):
-    
+from operator import xor
+from typing import List
+import acoustid
+import chromaprint
+import tempfile
+import os
+
+def get_fingerprint(audio_file) -> List[int]:
+    """
+    Reads an audio file from memory and returns a fingerprint.
+
+    Args:
+        audio_file: A BytesIO object containing the audio data.
+
+    Returns:
+        Returns a list of 32-bit integers representing the audio fingerprint.
+    """
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_file:
+        temp_file.write(audio_file.getvalue())
+        temp_file_path = temp_file.name
+
     try:
-        # Split texts into chunks
+        _, encoded = acoustid.fingerprint_file(temp_file_path)
+        fingerprint, _ = chromaprint.decode_fingerprint(encoded)
+    finally:
+        os.unlink(temp_file_path)
+
+    return fingerprint
+
+def fingerprint_distance(
+    f1: List[int],
+    f2: List[int],
+    fingerprint_len: int,
+) -> float:
+    """
+    Returns a normalized distance between two fingerprints.
+
+    Args:
+        f1: The first fingerprint.
+        f2: The second fingerprint.
+        fingerprint_len: Only compare the first `fingerprint_len` integers in each fingerprint.
+
+    Returns:
+        Returns a number between 0.0 and 1.0 representing the distance between two fingerprints.
+    """
+    max_hamming_weight = 32 * fingerprint_len
+    hamming_weight = sum(
+        sum(
+            c == "1"
+            for c in bin(xor(f1[i], f2[i]))
+        )
+        for i in range(fingerprint_len)
+    )
+    return hamming_weight / max_hamming_weight
+
+def compare_texts(ideal_audio, comparison_audio):
+    try:
+        ideal_fingerprint = get_fingerprint(ideal_audio)
+        comparison_fingerprint = get_fingerprint(comparison_audio)
+
+        ideal_text = transcribe_audio(ideal_audio)
+        comparison_text = transcribe_audio(comparison_audio)
+
         chunk_size = 3000  # Adjust this value based on your needs
         ideal_chunks = [ideal_text[i:i+chunk_size] for i in range(0, len(ideal_text), chunk_size)]
         comparison_chunks = [comparison_text[i:i+chunk_size] for i in range(0, len(comparison_text), chunk_size)]
@@ -101,15 +159,12 @@ def compare_texts(ideal_text, comparison_text):
             comparisons.append(response.choices[0].message.content)
         
         comparison = "\n".join(comparisons)
-        
-        # Calculate similarity using OpenAI's embedding
-        embedding1 = client.embeddings.create(input=ideal_text, model="text-embedding-3-large").data[0].embedding
-        embedding2 = client.embeddings.create(input=comparison_text, model="text-embedding-3-large").data[0].embedding
-        
-        # Calculate cosine similarity
-        similarity = sum(a*b for a, b in zip(embedding1, embedding2))
-        similarity = similarity / (sum(a*a for a in embedding1)**0.5 * sum(b*b for b in embedding2)**0.5)
-        
+
+        # Use a fixed length for comparison, e.g., the length of the shorter fingerprint
+        fingerprint_len = min(len(ideal_fingerprint), len(comparison_fingerprint))
+
+        distance = fingerprint_distance(ideal_fingerprint, comparison_fingerprint, fingerprint_len)
+        similarity = 1 - distance  # Convert distance to similarity
         return comparison, similarity * 100
     except Exception as e:
         return f"An error occurred during comparison: {str(e)}", 0
@@ -152,33 +207,29 @@ def create_comparison_chart(ideal_scores, comparison_scores):
     comparison_scores = [float(score) for score in comparison_scores]
     categories = ['Overall', 'Pitch', 'Tone', 'Rhythm', 'Energy']
     
+    differences = [comparison - ideal for ideal, comparison in zip(ideal_scores, comparison_scores)]
+    
     fig = go.Figure(data=[
-        go.Bar(name='Ideal', x=categories, y=ideal_scores),
-        go.Bar(name='Comparison', x=categories, y=comparison_scores)
+        go.Bar(name='Difference', x=categories, y=differences,
+               text=[f"{diff:.2f}" for diff in differences],
+               textposition='outside')
     ])
     
     fig.update_layout(
-        title='Audio Score Comparison',
+        title='Audio Score Difference',
         xaxis_title='Categories',
-        yaxis_title='Scores',
-        barmode='group',
-        height=500,  # Increase the height of the chart
-        width=700    # Increase the width of the chart
+        yaxis_title='Score Difference',
+        height=500,
+        width=700
     )
     
-    # Add data labels on top of each bar
-    for i, (ideal, comparison) in enumerate(zip(ideal_scores, comparison_scores)):
-        fig.add_annotation(x=categories[i], y=ideal,
-                           text=f"{ideal:.2f}",
-                           showarrow=False,
-                           yshift=10)
-        fig.add_annotation(x=categories[i], y=comparison,
-                           text=f"{comparison:.2f}",
-                           showarrow=False,
-                           yshift=10)
+    # Ensure y-axis is centered at 0 and covers the range of differences
+    max_abs_diff = max(abs(min(differences)), abs(max(differences)))
+    fig.update_yaxes(range=[-max_abs_diff * 1.1, max_abs_diff * 1.1], zeroline=True)
     
-    # Ensure y-axis starts from 0 and goes up to 100
-    fig.update_yaxes(range=[0, 100])
+    # Add a horizontal line at y=0
+    fig.add_shape(type="line", x0=-0.5, y0=0, x1=len(categories)-0.5, y1=0,
+                  line=dict(color="black", width=1, dash="dash"))
     
     return fig
 
@@ -266,8 +317,8 @@ def compare_spectrograms(ideal_audio, comparison_audio):
         temp_comparison_path = temp_comparison.name
 
     # Load audio files
-    ideal_y, ideal_sr = librosa.load(temp_ideal_path, sr=None, duration=120)  # Limit to 30 seconds
-    comparison_y, comparison_sr = librosa.load(temp_comparison_path, sr=None, duration=120)  # Limit to 30 seconds
+    ideal_y, ideal_sr = librosa.load(temp_ideal_path, sr=None, duration=480)  # Limit to 30 seconds
+    comparison_y, comparison_sr = librosa.load(temp_comparison_path, sr=None, duration=480)  # Limit to 30 seconds
     
     # Compute spectrograms
     n_fft = 2048  # Reduce FFT window size
@@ -436,53 +487,62 @@ def calculate_overall_score(similarity, audio_scores_diff):
 
 # Streamlit app
 def main():
-    st.title("Imam Evaluator App")
+    st.set_page_config(page_title="Imam Evaluator App", page_icon="🕌", layout="wide")
+    
+    # Custom CSS for better styling
+    st.markdown("""
+        <style>
+        .main {
+            padding: 2rem;
+        }
+        .stButton>button {
+            width: 100%;
+        }
+        .stTextInput>div>div>input {
+            color: #4F8BF9;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
-    # Create tabs
-    tab1, tab2 = st.tabs(["Transcription and Comparison", "Tools"])
+    st.title("Imam Evaluator App 🕌")
+
+    # Create tabs with icons
+    tab1, tab2 = st.tabs(["📊 Transcription and Comparison", "🛠️ Tools"])
 
     with tab1:
         st.write("Upload two audio files (max 20 MB each). The first audio will be considered the ideal, and the second will be compared to it.")
 
-        # File uploaders
-        ideal_audio = st.file_uploader("Choose the ideal audio file (max 20 MB)", type=["wav", "mp3", "ogg", "mpeg"])
-        comparison_audio = st.file_uploader("Choose the audio file to compare (max 20 MB)", type=["wav", "mp3", "ogg", "mpeg"])
+        col1, col2 = st.columns(2)
+        with col1:
+            ideal_audio = st.file_uploader("Choose the ideal audio file (max 20 MB)", type=["wav", "mp3", "ogg", "mpeg"])
+        with col2:
+            comparison_audio = st.file_uploader("Choose the audio file to compare (max 20 MB)", type=["wav", "mp3", "ogg", "mpeg"])
 
         if ideal_audio is not None and comparison_audio is not None:
-            # Check file sizes
-            if not check_file_size(ideal_audio):
-                st.error("Error: Ideal audio file size exceeds 20 MB limit.")
-            elif not check_file_size(comparison_audio):
-                st.error("Error: Comparison audio file size exceeds 20 MB limit.")
+            if not check_file_size(ideal_audio) or not check_file_size(comparison_audio):
+                st.error("Error: One or both audio files exceed the 20 MB limit.")
             else:
-                # Transcribe and analyze ideal audio
-                st.write("Transcribing and analyzing ideal audio...")
-                ideal_text = transcribe_audio(ideal_audio)
-                ideal_overall, ideal_pitch, ideal_tone, ideal_rhythm, ideal_energy = analyze_audio(ideal_audio)
-                
-                # Transcribe and analyze comparison audio
-                st.write("Transcribing and analyzing comparison audio...")
-                comparison_text = transcribe_audio(comparison_audio)
-                comparison_overall, comparison_pitch, comparison_tone, comparison_rhythm, comparison_energy = analyze_audio(comparison_audio)
+                with st.spinner("Processing audio files..."):
+                    # Transcribe and analyze ideal audio
+                    ideal_text = transcribe_audio(ideal_audio)
+                    ideal_overall, ideal_pitch, ideal_tone, ideal_rhythm, ideal_energy = analyze_audio(ideal_audio)
+                    
+                    # Transcribe and analyze comparison audio
+                    comparison_text = transcribe_audio(comparison_audio)
+                    comparison_overall, comparison_pitch, comparison_tone, comparison_rhythm, comparison_energy = analyze_audio(comparison_audio)
                 
                 # Format texts for Arabic
                 formatted_ideal_text = format_arabic_text(ideal_text)
                 formatted_comparison_text = format_arabic_text(comparison_text)
                 
                 # Display texts with highlighted differences
-                st.markdown("**Transcription Comparison:**")
+                st.subheader("Transcription Comparison")
                 highlighted_diff = highlight_diff(ideal_text, comparison_text)
-                st.markdown("### Transcription Comparison", unsafe_allow_html=True)
                 st.markdown(
-                    """
+                    f"""
                     <div style="border: 1px solid #ddd; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
-                        {}
+                        {highlighted_diff}
                     </div>
-                    """.format(highlighted_diff),
-                    unsafe_allow_html=True
-                )
-                st.markdown(
-                    """
                     <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
                         <span style="background-color: #ffcccb; padding: 2px 4px; border-radius: 3px;">Red</span>: Removed text
                         <span style="background-color: #90EE90; padding: 2px 4px; border-radius: 3px; margin-left: 10px;">Green</span>: Added text
@@ -497,80 +557,85 @@ def main():
                     (comparison_overall, comparison_pitch, comparison_tone, comparison_rhythm, comparison_energy)
                 )
 
-                # Perform time domain analysis
-                st.markdown("### Time Domain Analysis")
+                # Time domain analysis
+                st.subheader("Time Domain Analysis")
                 
                 ideal_analysis = time_domain_analysis(ideal_audio)
                 comparison_analysis = time_domain_analysis(comparison_audio)
                 
-                # Plot RMS Energy
-                fig_rms = go.Figure()
-                fig_rms.add_trace(go.Scatter(y=ideal_analysis['rms'], name='Ideal', line=dict(color='blue')))
-                fig_rms.add_trace(go.Scatter(y=comparison_analysis['rms'], name='Comparison', line=dict(color='red')))
-                fig_rms.update_layout(title='RMS Energy', xaxis_title='Frame', yaxis_title='Energy')
-                st.plotly_chart(fig_rms)
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    fig_rms = go.Figure()
+                    fig_rms.add_trace(go.Scatter(y=ideal_analysis['rms'], name='Ideal', line=dict(color='blue')))
+                    fig_rms.add_trace(go.Scatter(y=comparison_analysis['rms'], name='Comparison', line=dict(color='red')))
+                    fig_rms.update_layout(title='RMS Energy', xaxis_title='Frame', yaxis_title='Energy', height=300)
+                    st.plotly_chart(fig_rms, use_container_width=True)
                 
-                # Plot Zero Crossing Rate
-                fig_zcr = go.Figure()
-                fig_zcr.add_trace(go.Scatter(y=ideal_analysis['zcr'], name='Ideal', line=dict(color='blue')))
-                fig_zcr.add_trace(go.Scatter(y=comparison_analysis['zcr'], name='Comparison', line=dict(color='red')))
-                fig_zcr.update_layout(title='Zero Crossing Rate', xaxis_title='Frame', yaxis_title='Rate')
-                st.plotly_chart(fig_zcr)
+                with col2:
+                    fig_zcr = go.Figure()
+                    fig_zcr.add_trace(go.Scatter(y=ideal_analysis['zcr'], name='Ideal', line=dict(color='blue')))
+                    fig_zcr.add_trace(go.Scatter(y=comparison_analysis['zcr'], name='Comparison', line=dict(color='red')))
+                    fig_zcr.update_layout(title='Zero Crossing Rate', xaxis_title='Frame', yaxis_title='Rate', height=300)
+                    st.plotly_chart(fig_zcr, use_container_width=True)
                 
-                # Plot Amplitude Envelope
-                fig_ae = go.Figure()
-                fig_ae.add_trace(go.Scatter(y=ideal_analysis['amplitude_envelope'], name='Ideal', line=dict(color='blue')))
-                fig_ae.add_trace(go.Scatter(y=comparison_analysis['amplitude_envelope'], name='Comparison', line=dict(color='red')))
-                fig_ae.update_layout(title='Amplitude Envelope', xaxis_title='Frame', yaxis_title='Amplitude')
-                st.plotly_chart(fig_ae)
+                with col3:
+                    fig_ae = go.Figure()
+                    fig_ae.add_trace(go.Scatter(y=ideal_analysis['amplitude_envelope'], name='Ideal', line=dict(color='blue')))
+                    fig_ae.add_trace(go.Scatter(y=comparison_analysis['amplitude_envelope'], name='Comparison', line=dict(color='red')))
+                    fig_ae.update_layout(title='Amplitude Envelope', xaxis_title='Frame', yaxis_title='Amplitude', height=300)
+                    st.plotly_chart(fig_ae, use_container_width=True)
                 
                 # Display Temporal Centroid
-                st.markdown(f"**Temporal Centroid:**")
-                st.markdown(f"Ideal: {ideal_analysis['temporal_centroid']:.4f} seconds")
-                st.markdown(f"Comparison: {comparison_analysis['temporal_centroid']:.4f} seconds")
+                st.metric("Temporal Centroid", 
+                          f"Ideal: {ideal_analysis['temporal_centroid']:.4f}s | Comparison: {comparison_analysis['temporal_centroid']:.4f}s")
                 
                 # Create and display comparison chart
+                st.subheader("Audio Score Comparison")
                 chart = create_comparison_chart(
                     [ideal_overall, ideal_pitch, ideal_tone, ideal_rhythm, ideal_energy],
                     [comparison_overall, comparison_pitch, comparison_tone, comparison_rhythm, comparison_energy]
                 )
-                st.plotly_chart(chart)
+                st.plotly_chart(chart, use_container_width=True)
 
                 # Create and display waveform comparison
-                st.markdown("### Waveform Comparison")
+                st.subheader("Waveform Comparison")
                 waveform_fig = create_waveform_comparison(ideal_audio, comparison_audio)
-                st.plotly_chart(waveform_fig)
+                st.plotly_chart(waveform_fig, use_container_width=True)
                 
                 # Create and display spectrogram comparison
-                st.markdown("### Spectrogram Comparison")
+                st.subheader("Spectrogram Comparison")
                 spectrogram_fig = compare_spectrograms(ideal_audio, comparison_audio)
-                st.plotly_chart(spectrogram_fig)
+                st.plotly_chart(spectrogram_fig, use_container_width=True)
 
-
-                
-                st.markdown("**Audio Score Comparison:**")
-                st.markdown("The following differences are calculated by subtracting the ideal score from the comparison score for each category:")
-                st.markdown(f"Overall Difference: {float(overall_diff):.2f} ({'higher' if float(overall_diff) > 0 else 'lower'})")
-                st.markdown("(Positive value means the comparison score is higher than the ideal score)")
-                st.markdown(f"Pitch Difference: {float(pitch_diff):.2f} ({'higher' if float(pitch_diff) > 0 else 'lower'})")
-                st.markdown("(Calculated from the median pitch of non-zero magnitudes in the audio)")
-                st.markdown(f"Tone Difference: {float(tone_diff):.2f} ({'higher' if float(tone_diff) > 0 else 'lower'})")
-                st.markdown("(Based on spectral centroid, representing audio brightness)")
-                st.markdown(f"Rhythm Difference: {float(rhythm_diff):.2f} ({'higher' if float(rhythm_diff) > 0 else 'lower'})")
-                st.markdown("(Derived from the tempo of the audio)")
-                st.markdown(f"Energy Difference: {float(energy_diff):.2f} ({'higher' if float(energy_diff) > 0 else 'lower'})")
-                st.markdown("(Computed from the root mean square energy of the audio)")
+                # Audio Score Comparison details
+                with st.expander("Detailed Audio Score Comparison"):
+                    st.info("The following differences are calculated by subtracting the ideal score from the comparison score for each category. Positive values mean the comparison score is higher than the ideal score.")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Overall Difference", f"{float(overall_diff):.2f}", delta=f"{'Higher' if float(overall_diff) > 0 else 'Lower'}")
+                        st.metric("Pitch Difference", f"{float(pitch_diff):.2f}", delta=f"{'Higher' if float(pitch_diff) > 0 else 'Lower'}")
+                        st.caption("Calculated from the median pitch of non-zero magnitudes in the audio")
+                    with col2:
+                        st.metric("Tone Difference", f"{float(tone_diff):.2f}", delta=f"{'Higher' if float(tone_diff) > 0 else 'Lower'}")
+                        st.caption("Based on spectral centroid, representing audio brightness")
+                        st.metric("Rhythm Difference", f"{float(rhythm_diff):.2f}", delta=f"{'Higher' if float(rhythm_diff) > 0 else 'Lower'}")
+                        st.caption("Derived from the tempo of the audio")
+                        st.metric("Energy Difference", f"{float(energy_diff):.2f}", delta=f"{'Higher' if float(energy_diff) > 0 else 'Lower'}")
+                        st.caption("Computed from the root mean square energy of the audio")
                 
                 # Compare texts and display similarity
                 if not ideal_text.startswith("An error occurred") and not comparison_text.startswith("An error occurred"):
                     comparison, similarity = compare_texts(ideal_text, comparison_text)
-                    st.markdown(f"**Similarity to Ideal: {similarity:.2f}%**")
-                    st.markdown("**Comparison and Feedback:**")
-                    # st.markdown(comparison, unsafe_allow_html=True)
-                    overall_score = calculate_overall_score(similarity, overall_diff)
-    
-                    st.markdown(f"**Overall Score: {overall_score}%**")
-                    # st.markdown(f"(Based on 80% text similarity and 20% audio comparison)")
+                    st.subheader("Text Similarity Analysis")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Similarity to Ideal", f"{similarity:.2f}%")
+                    with col2:
+                        overall_score = calculate_overall_score(similarity, overall_diff)
+                        st.metric("Overall Score", f"{overall_score}%")
+                    
+                    with st.expander("Detailed Comparison and Feedback"):
+                        st.markdown(comparison, unsafe_allow_html=True)
                 else:
                     if ideal_text.startswith("An error occurred"):
                         st.error(ideal_text)
@@ -578,12 +643,12 @@ def main():
                         st.error(comparison_text)
 
     with tab2:
-        st.header("Tools")
-        st.subheader("Text to Speech Converter")
+        st.header("Text to Speech Converter")
         text_input = st.text_area("Enter text to convert to speech:", height=150)
-        if st.button("Convert to Speech"):
+        if st.button("Convert to Speech", key="convert_button"):
             if text_input:
-                audio_result = text_to_speech(text_input)
+                with st.spinner("Converting text to speech..."):
+                    audio_result = text_to_speech(text_input)
                 if isinstance(audio_result, io.BytesIO):
                     st.audio(audio_result, format="audio/mp3")
                     st.download_button(
