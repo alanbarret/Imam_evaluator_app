@@ -669,7 +669,7 @@ def main():
                     with col1:
                         st.metric("Similarity to Ideal", f"{float(similarity):.2f}%")
                     with col2:
-                        overall_score = calculate_overall_score(similarity, overall_diff)
+                        overall_score = calculate_overall_score(float(similarity), overall_diff)
                         st.metric("Overall Score", f"{overall_score}%")
                     
                     with st.expander("Detailed Comparison and Feedback"):
