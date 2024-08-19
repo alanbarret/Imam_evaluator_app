@@ -82,7 +82,6 @@ def analyze_audio(audio_file):
 
 from operator import xor
 from typing import List
-from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 # These imports should be in your Python module path
 # after installing the `pyacoustid` package from PyPI.
@@ -90,30 +89,24 @@ import acoustid
 import chromaprint
 
 
-def get_fingerprint(file: UploadedFile) -> List[int]:
+def get_fingerprint(filename: str) -> List[int]:
     """
-    Reads an uploaded audio file and returns a fingerprint.
+    Reads an audio file from the filesystem and returns a
+    fingerprint.
 
     Args:
-        file: An UploadedFile object containing the audio data.
+        filename: The filename of an audio file on the local
+            filesystem to read.
 
     Returns:
         Returns a list of 32-bit integers. Two fingerprints can
         be roughly compared by counting the number of
         corresponding bits that are different from each other.
     """
-    # Save the uploaded file to a temporary location
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        temp_file.write(file.getvalue())
-        temp_filename = temp_file.name
-
-    try:
-        _, encoded = acoustid.fingerprint_file(temp_filename)
-        fingerprint, _ = chromaprint.decode_fingerprint(encoded)
-    finally:
-        # Clean up the temporary file
-        os.unlink(temp_filename)
-
+    _, encoded = acoustid.fingerprint_file(filename)
+    fingerprint, _ = chromaprint.decode_fingerprint(
+        encoded
+    )
     return fingerprint
 
 
@@ -644,8 +637,22 @@ def main():
                 # Compare texts and display similarity
                 if not ideal_text.startswith("An error occurred") and not comparison_text.startswith("An error occurred"):
                     comparison, _ = compare_texts(ideal_text, comparison_text)
-                    f1 = get_fingerprint(ideal_audio)
-                    f2 = get_fingerprint(comparison_audio)
+                    # Save uploaded audio files to temporary paths
+                    ideal_temp_path = "temp_ideal_audio.mp3"
+                    comparison_temp_path = "temp_comparison_audio.mp3"
+                    
+                    with open(ideal_temp_path, "wb") as f:
+                        f.write(ideal_audio.getvalue())
+                    
+                    with open(comparison_temp_path, "wb") as f:
+                        f.write(comparison_audio.getvalue())
+                    
+                    f1 = get_fingerprint(ideal_temp_path)
+                    f2 = get_fingerprint(comparison_temp_path)
+                    
+                    # Clean up temporary files
+                    os.remove(ideal_temp_path)
+                    os.remove(comparison_temp_path)
                     f_len = min(len(f1), len(f2))
                     similarity = 100 * (1 - fingerprint_distance(f1, f2, f_len))
                     st.subheader("Text Similarity Analysis")
