@@ -142,33 +142,7 @@ def fingerprint_distance(
     )
     return hamming_weight / max_hamming_weight
 
-# Function to compare audio fingerprints
-def compare_audio_fingerprints(ideal_audio, comparison_audio):
-    try:
-        # Save the uploaded files to temporary locations
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_ideal:
-            temp_ideal.write(ideal_audio.getvalue())
-            temp_ideal_path = temp_ideal.name
 
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_comparison:
-            temp_comparison.write(comparison_audio.getvalue())
-            temp_comparison_path = temp_comparison.name
-
-        # Get fingerprints
-        ideal_fingerprint = get_fingerprint(temp_ideal_path)
-        comparison_fingerprint = get_fingerprint(temp_comparison_path)
-
-        # Calculate fingerprint distance
-        fingerprint_len = min(len(ideal_fingerprint), len(comparison_fingerprint))
-        distance = fingerprint_distance(ideal_fingerprint, comparison_fingerprint, fingerprint_len)
-
-        # Remove temporary files
-        os.unlink(temp_ideal_path)
-        os.unlink(temp_comparison_path)
-
-        return distance
-    except Exception as e:
-        return f"An error occurred during audio fingerprint comparison: {str(e)}"
 
 
 
@@ -663,13 +637,16 @@ def main():
                 # Compare texts and display similarity
                 if not ideal_text.startswith("An error occurred") and not comparison_text.startswith("An error occurred"):
                     comparison, _ = compare_texts(ideal_text, comparison_text)
-                    similarity = compare_audio_fingerprints(ideal_audio, comparison_audio)
+                    f1 = get_fingerprint(ideal_audio)
+                    f2 = get_fingerprint(comparison_audio)
+                    f_len = min(len(f1), len(f2))
+                    similarity = 100 * (1 - fingerprint_distance(f1, f2, f_len))
                     st.subheader("Text Similarity Analysis")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("Similarity to Ideal", f"{float(similarity)}%")
+                        st.metric("Similarity to Ideal", f"{similarity}%")
                     with col2:
-                        overall_score = calculate_overall_score(float(similarity), overall_diff)
+                        overall_score = calculate_overall_score(similarity, overall_diff)
                         st.metric("Overall Score", f"{overall_score}%")
                     
                     with st.expander("Detailed Comparison and Feedback"):
