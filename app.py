@@ -92,22 +92,29 @@ import chromaprint
 def get_fingerprint(filename: str) -> List[int]:
     """
     Reads an audio file from the filesystem and returns a
-    fingerprint.
+    fingerprint using the fpcalc command.
 
     Args:
         filename: The filename of an audio file on the local
             filesystem to read.
 
     Returns:
-        Returns a list of 32-bit integers. Two fingerprints can
-        be roughly compared by counting the number of
-        corresponding bits that are different from each other.
+        Returns a list of 32-bit integers representing the audio fingerprint.
     """
-    _, encoded = acoustid.fingerprint_file(filename)
-    fingerprint, _ = chromaprint.decode_fingerprint(
-        encoded
-    )
-    return fingerprint
+    import subprocess
+    import json
+
+    try:
+        result = subprocess.run(['fpcalc', filename, '-raw'], capture_output=True, text=True, check=True)
+        fingerprint_str = result.stdout.strip().split('=')[1]
+        fingerprint = json.loads(f'[{fingerprint_str}]')
+        return fingerprint
+    except subprocess.CalledProcessError as e:
+        print(f"Error running fpcalc: {e}")
+        return []
+    except (IndexError, json.JSONDecodeError) as e:
+        print(f"Error parsing fpcalc output: {e}")
+        return []
 
 
 def fingerprint_distance(
