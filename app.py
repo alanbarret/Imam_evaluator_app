@@ -135,36 +135,75 @@ def fingerprint_distance(
     )
     return hamming_weight / max_hamming_weight
 
+from operator import xor
+from typing import List
+import acoustid
+import chromaprint
+import tempfile
+
+def get_fingerprint(audio_file) -> List[int]:
+    """
+    Reads an audio file from memory and returns a fingerprint.
+
+    Args:
+        audio_file: A BytesIO object containing the audio data.
+
+    Returns:
+        Returns a list of 32-bit integers representing the audio fingerprint.
+    """
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_file:
+        temp_file.write(audio_file.getvalue())
+        temp_file_path = temp_file.name
+
+    try:
+        _, encoded = acoustid.fingerprint_file(temp_file_path)
+        fingerprint, _ = chromaprint.decode_fingerprint(encoded)
+    finally:
+        os.unlink(temp_file_path)
+
+    return fingerprint
+
+def fingerprint_distance(
+    f1: List[int],
+    f2: List[int],
+    fingerprint_len: int,
+) -> float:
+    """
+    Returns a normalized distance between two fingerprints.
+
+    Args:
+        f1: The first fingerprint.
+        f2: The second fingerprint.
+        fingerprint_len: Only compare the first `fingerprint_len` integers in each fingerprint.
+
+    Returns:
+        Returns a number between 0.0 and 1.0 representing the distance between two fingerprints.
+    """
+    max_hamming_weight = 32 * fingerprint_len
+    hamming_weight = sum(
+        sum(
+            c == "1"
+            for c in bin(xor(f1[i], f2[i]))
+        )
+        for i in range(fingerprint_len)
+    )
+    return hamming_weight / max_hamming_weight
+
+
+
+
 def compare_texts(ideal_audio, comparison_audio):
     try:
         ideal_fingerprint = get_fingerprint(ideal_audio)
         comparison_fingerprint = get_fingerprint(comparison_audio)
-
-        ideal_text = transcribe_audio(ideal_audio)
-        comparison_text = transcribe_audio(comparison_audio)
-
-        chunk_size = 3000  # Adjust this value based on your needs
-        ideal_chunks = [ideal_text[i:i+chunk_size] for i in range(0, len(ideal_text), chunk_size)]
-        comparison_chunks = [comparison_text[i:i+chunk_size] for i in range(0, len(comparison_text), chunk_size)]
-        
-        comparisons = []
-        for ideal_chunk, comparison_chunk in zip(ideal_chunks, comparison_chunks):
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a text comparison assistant. Compare the following two text chunks, where the first is the ideal text and the second is the text to be compared. Highlight the differences and provide feedback on how the second text can be improved to match the ideal text."},
-                    {"role": "user", "content": f"Ideal text chunk: {ideal_chunk}\nComparison text chunk: {comparison_chunk}"}
-                ]
-            )
-            comparisons.append(response.choices[0].message.content)
-        
-        comparison = "\n".join(comparisons)
 
         # Use a fixed length for comparison, e.g., the length of the shorter fingerprint
         fingerprint_len = min(len(ideal_fingerprint), len(comparison_fingerprint))
 
         distance = fingerprint_distance(ideal_fingerprint, comparison_fingerprint, fingerprint_len)
         similarity = 1 - distance  # Convert distance to similarity
+
+        comparison = f"Audio similarity: {similarity:.2%}"
         return comparison, similarity * 100
     except Exception as e:
         return f"An error occurred during comparison: {str(e)}", 0
@@ -625,7 +664,14 @@ def main():
                 
                 # Compare texts and display similarity
                 if not ideal_text.startswith("An error occurred") and not comparison_text.startswith("An error occurred"):
-                    comparison, similarity = compare_texts(ideal_text, comparison_text)
+                    comparison, _ = compare_texts(ideal_text, comparison_text)
+                    # Calculate audio fingerprint similarity
+                    ideal_fingerprint = get_fingerprint(ideal_audio)
+                    comparison_fingerprint = get_fingerprint(comparison_audio)
+                    fingerprint_len = min(len(ideal_fingerprint), len(comparison_fingerprint))
+                    similarity = 1 - fingerprint_distance(ideal_fingerprint, comparison_fingerprint, fingerprint_len)
+
+                    
                     st.subheader("Text Similarity Analysis")
                     col1, col2 = st.columns(2)
                     with col1:
