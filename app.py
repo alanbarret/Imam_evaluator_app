@@ -83,10 +83,6 @@ def analyze_audio(audio_file):
 from operator import xor
 from typing import List
 
-# These imports should be in your Python module path
-# after installing the `pyacoustid` package from PyPI.
-import acoustid
-import chromaprint
 
 
 def get_fingerprint(filename: str) -> List[int]:
@@ -105,8 +101,12 @@ def get_fingerprint(filename: str) -> List[int]:
     import json
 
     try:
-        result = subprocess.run(['fpcalc', filename, '-raw'], capture_output=True, text=True, check=True)
-        fingerprint_str = result.stdout.strip().split('=')[1]
+        
+        if os.name == 'nt':  # Check if the OS is Windows
+            result = subprocess.run(['fpcalc.exe', filename, '-raw'], capture_output=True, text=True, check=True)
+        else:  # For non-Windows systems
+            result = subprocess.run(['fpcalc', filename, '-raw'], capture_output=True, text=True, check=True)
+        fingerprint_str = result.stdout.strip().split('FINGERPRINT=')[1]
         fingerprint = json.loads(f'[{fingerprint_str}]')
         return fingerprint
     except subprocess.CalledProcessError as e:
@@ -147,6 +147,7 @@ def fingerprint_distance(
         )
         for i in range(fingerprint_len)
     )
+    print(f1,f2,hamming_weight, max_hamming_weight)
     return hamming_weight / max_hamming_weight
 
 
@@ -656,7 +657,7 @@ def main():
                     
                     f1 = get_fingerprint(ideal_temp_path)
                     f2 = get_fingerprint(comparison_temp_path)
-                    
+                    print(f1,f2, "fingerprints")
                     # Clean up temporary files
                     os.remove(ideal_temp_path)
                     os.remove(comparison_temp_path)
