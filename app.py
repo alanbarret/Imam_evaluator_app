@@ -1,3 +1,4 @@
+import math
 import tempfile
 import streamlit as st
 import arabic_reshaper
@@ -148,7 +149,8 @@ def fingerprint_distance(
         for i in range(fingerprint_len)
     )
     print(f1,f2,hamming_weight, max_hamming_weight)
-    return hamming_weight / max_hamming_weight
+    linear_distance = hamming_weight / max_hamming_weight
+    return math.sqrt(linear_distance)
 
 
 
@@ -336,8 +338,8 @@ def compare_spectrograms(ideal_audio, comparison_audio):
         temp_comparison_path = temp_comparison.name
 
     # Load audio files
-    ideal_y, ideal_sr = librosa.load(temp_ideal_path, sr=None, duration=480)  # Limit to 30 seconds
-    comparison_y, comparison_sr = librosa.load(temp_comparison_path, sr=None, duration=480)  # Limit to 30 seconds
+    ideal_y, ideal_sr = librosa.load(temp_ideal_path, sr=None)  # Limit to 30 seconds
+    comparison_y, comparison_sr = librosa.load(temp_comparison_path, sr=None)  # Limit to 30 seconds
     
     # Compute spectrograms
     n_fft = 2048  # Reduce FFT window size
