@@ -667,7 +667,7 @@ def main():
                     st.subheader("Text Similarity Analysis")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("Similarity to Ideal", f"{similarity:.2f}%")
+                        st.metric("Similarity to Ideal", similarity)
                     with col2:
                         overall_score = calculate_overall_score(similarity, overall_diff)
                         st.metric("Overall Score", f"{overall_score}%")
