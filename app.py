@@ -82,6 +82,7 @@ def analyze_audio(audio_file):
 
 from operator import xor
 from typing import List
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 # These imports should be in your Python module path
 # after installing the `pyacoustid` package from PyPI.
