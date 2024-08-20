@@ -763,7 +763,6 @@ def main():
                         with open("ideal_text.pdf", "wb") as f:
                             f.write(ideal_pdf.getvalue())
                         st.components.v1.html('<iframe src="ideal_text.pdf" width="100%" height="600px" style="border: none;"></iframe>', height=600)
-                        os.remove("ideal_text.pdf")
                     with col2:
                         st.subheader("Transcribed Text (from Audio)")
                         st.markdown(f'<div style="border: 1px solid #ddd; padding: 10px; height: 600px; overflow-y: auto;">{comparison_text}</div>', unsafe_allow_html=True)
