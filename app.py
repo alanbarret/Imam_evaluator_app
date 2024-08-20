@@ -708,6 +708,7 @@ def main():
         </style>
         """, unsafe_allow_html=True)
 
+    st.image("logo.svg", width=800)
     st.title("Imam Evaluator App 🕌")
 
     # Create tabs with icons
@@ -760,9 +761,7 @@ def main():
                    
                     with col1:
                         st.subheader("Original PDF")
-                        with open("ideal_text.pdf", "wb") as f:
-                            f.write(ideal_pdf.getvalue())
-                        st.components.v1.html('<iframe src="ideal_text.pdf" width="100%" height="600px" style="border: none;"></iframe>', height=600)
+                        st.markdown(f'<iframe src="data:application/pdf;base64,{base64.b64encode(ideal_pdf.read()).decode()}" width="100%" height="600px" style="border: none;"></iframe>', unsafe_allow_html=True)
                     with col2:
                         st.subheader("Transcribed Text (from Audio)")
                         st.markdown(f'<div style="border: 1px solid #ddd; padding: 10px; height: 600px; overflow-y: auto;">{comparison_text}</div>', unsafe_allow_html=True)
