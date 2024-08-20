@@ -773,6 +773,7 @@ def main():
                         <div style="border: 1px solid #ffcccb; padding: 10px; border-radius: 10px; max-height: 300px; overflow-y: auto;">
                             {highlighted_diff}
                         </div>
+                        </br>
                         """,
                         unsafe_allow_html=True
 )
