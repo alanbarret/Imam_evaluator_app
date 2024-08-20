@@ -1,3 +1,4 @@
 build-essential
 pkg-config
 libchromaprint-tools
+tesseract-ocr
