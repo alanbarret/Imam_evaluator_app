@@ -773,12 +773,11 @@ def main():
                         <div style="border: 1px solid #ffcccb; padding: 10px; border-radius: 10px; max-height: 300px; overflow-y: auto;">
                             {highlighted_diff}
                         </div>
-                        </br>
                         """,
                         unsafe_allow_html=True
 )
 
-                    
+                    st.write("")  # Add a space between buttons
 
                     process_button = st.button("Generate Detailed Comparison")
                     
