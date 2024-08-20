@@ -687,6 +687,7 @@ def highlight_diff(ideal_text, comparison_text):
 
 # Streamlit app
 def main():
+    
     st.set_page_config(page_title="Imam Evaluator App", page_icon="🕌", layout="wide")
     
     # Custom CSS for better styling
@@ -694,16 +695,21 @@ def main():
         <style>
         .main {
             padding: 2rem;
+            background-color: white; /* Set background to white */
+            color: black; /* Set all text to black */
         }
         .stButton>button {
             width: 100%;
+            color: black; /* Set button text to black */
         }
         .stTextInput>div>div>input {
-            color: #4F8BF9;
+            color: black; /* Set input text to black */
         }
         .stTextArea textarea {
             font-family: monospace;
             height: 300px;
+            color: black; /* Set textarea text to black */
+            background-color: white; /* Set textarea background to white */
         }
         </style>
         """, unsafe_allow_html=True)
