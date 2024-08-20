@@ -677,9 +677,9 @@ def highlight_diff(ideal_text, comparison_text):
     highlighted_diff = []
 
     for word in diff:
-        if word.startswith('-'):
-            # Original text (mistake in comparison_text)
-            highlighted_diff.append(f'<span style="background-color: #ffcccb;" title="Original: {word[2:]}">{word[2:]}</span>')
+        if word.startswith('+'):
+            # Changed text (corrected in comparison_text)
+            highlighted_diff.append(f'<span style="background-color: #90EE90; color:#000" title="Changed: {word[2:]}">{word[2:]}</span>')
         else:
             highlighted_diff.append(word[2:])
 
@@ -771,10 +771,6 @@ def main():
                         f"""
                         <div style="border: 1px solid #ffcccb; padding: 10px; border-radius: 10px; max-height: 300px; overflow-y: auto;">
                             {highlighted_diff}
-                        </div>
-                        <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
-                            <span style="background-color: #ffcccb; padding: 2px 4px; border-radius: 3px;" title="Original text">Red</span>: Original text
-                            <span style="background-color: #90EE90; padding: 2px 4px; border-radius: 3px; margin-left: 10px;" title="Changed text">Green</span>: Changed text
                         </div>
                         """,
                         unsafe_allow_html=True
