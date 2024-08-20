@@ -499,21 +499,21 @@ def plot_time_domain_features(ideal_features, comparison_features):
     return fig
 
 
-# Function to highlight differences between two texts
-def highlight_diff(text1, text2):
-    d = difflib.Differ()
-    diff = list(d.compare(text1.split(), text2.split()))
+# # Function to highlight differences between two texts
+# def highlight_diff(text1, text2):
+#     d = difflib.Differ()
+#     diff = list(d.compare(text1.split(), text2.split()))
     
-    result = []
-    for word in diff:
-        if word.startswith('  '):
-            result.append(word[2:])
-        elif word.startswith('- '):
-            result.append(f'<span style="background-color: #ffcccb;">{word[2:]}</span>')
-        elif word.startswith('+ '):
-            result.append(f'<span style="background-color: #90EE90;">{word[2:]}</span>')
+#     result = []
+#     for word in diff:
+#         if word.startswith('  '):
+#             result.append(word[2:])
+#         elif word.startswith('- '):
+#             result.append(f'<span style="background-color: #ffcccb;">{word[2:]}</span>')
+#         elif word.startswith('+ '):
+#             result.append(f'<span style="background-color: #90EE90;">{word[2:]}</span>')
     
-    return ' '.join(result)
+#     return ' '.join(result)
 
 def calculate_overall_score(similarity, audio_scores_diff):
     # Normalize similarity to 0-100 scale if it's not already
@@ -662,6 +662,29 @@ def enhance_audio(audio_file):
     
 #     return output_pdf, diff, original_text, extracted_text
 
+def highlight_diff(ideal_text, comparison_text):
+    """
+    Highlight differences between two pieces of text.
+
+    Args:
+        ideal_text (str): The original or ideal text.
+        comparison_text (str): The text to compare against the ideal text.
+
+    Returns:
+        str: HTML with highlighted differences and tooltips.
+    """
+    diff = difflib.ndiff(ideal_text.split(), comparison_text.split())
+    highlighted_diff = []
+
+    for word in diff:
+        if word.startswith('-'):
+            # Original text (mistake in comparison_text)
+            highlighted_diff.append(f'<span style="background-color: #ffcccb;" title="Original: {word[2:]}">{word[2:]}</span>')
+        else:
+            highlighted_diff.append(word[2:])
+
+    return ' '.join(highlighted_diff)
+
 # Streamlit app
 def main():
     st.set_page_config(page_title="Imam Evaluator App", page_icon="🕌", layout="wide")
@@ -746,7 +769,7 @@ def main():
                     highlighted_diff = highlight_diff(ideal_text, comparison_text)
                     st.markdown(
                         f"""
-                        <div style="border: 1px solid #ddd; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+                        <div style="border: 1px solid #ffcccb; padding: 10px; border-radius: 10px; max-height: 300px; overflow-y: auto;">
                             {highlighted_diff}
                         </div>
                         <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
