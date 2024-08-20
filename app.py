@@ -871,7 +871,7 @@ def main():
                             pronunciation_comparison = client.chat.completions.create(
                                 model="gpt-4o-mini",
                                 messages=[
-                                    {"role": "system", "content": "You are an expert in Arabic pronunciation. Compare the pronunciation of two transcribed texts and provide detailed feedback. Identify and list all mistakes in the comparison text, including but not limited to mispronunciations, incorrect vowel sounds, missed or added consonants, and errors in stress or intonation. For each mistake, provide the correct pronunciation and explain why it's important for accurate recitation."},
+                                    {"role": "system", "content": "You are an expert in Arabic pronunciation. Compare the pronunciation of two transcribed texts and provide detailed feedback. Identify and list all mistakes in the comparison text, including but not limited to mispronunciations, incorrect vowel sounds, missed or added consonants, and errors in stress or intonation. For each mistake, provide the correct pronunciation and explain why it's important for accurate recitation. generate always in arabic"},
                                     {"role": "user", "content": f"Ideal text: {ideal_text}\nComparison text: {comparison_text}\nPlease compare the pronunciation, highlighting any differences or errors."}
                                 ]
                             )
