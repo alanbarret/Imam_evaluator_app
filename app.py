@@ -104,8 +104,6 @@ def analyze_audio(audio_file):
 
 from operator import xor
 from typing import List
-import acoustid
-import chromaprint
 
 
 
@@ -128,16 +126,12 @@ def get_fingerprint(filename: str) -> List[int]:
         
         if os.name == 'nt':  # Check if the OS is Windows
             result = subprocess.run(['fpcalc.exe', filename, '-raw'], capture_output=True, text=True, check=True)
-            fingerprint_str = result.stdout.strip().split('FINGERPRINT=')[1]
-            fingerprint = json.loads(f'[{fingerprint_str}]')
-            print("fingerprint",fingerprint)
-            return fingerprint
         else:  # For non-Windows systems
-            # result = subprocess.run(['fpcalc', filename, '-raw'], capture_output=True, text=True, check=True)
-            _, encoded = acoustid.fingerprint_file(filename)
-            fingerprint, _ = chromaprint.decode_fingerprint(encoded)
-            return fingerprint
- 
+            result = subprocess.run(['fpcalc', filename, '-raw'], capture_output=True, text=True, check=True)
+        fingerprint_str = result.stdout.strip().split('FINGERPRINT=')[1]
+        fingerprint = json.loads(f'[{fingerprint_str}]')
+        # print("fingerprint",fingerprint)
+        return fingerprint
     except subprocess.CalledProcessError as e:
         print(f"Error running fpcalc: {e}")
         return []
