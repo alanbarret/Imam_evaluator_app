@@ -854,10 +854,10 @@ def main():
                         waveform_fig = create_waveform_comparison(ideal_audio, comparison_audio)
                         st.plotly_chart(waveform_fig, use_container_width=True)
                         
-                        # Create and display spectrogram comparison
-                        st.subheader("Spectrogram Comparison")
-                        spectrogram_fig = compare_spectrograms(ideal_audio, comparison_audio)
-                        st.plotly_chart(spectrogram_fig, use_container_width=True)
+                        # # Create and display spectrogram comparison
+                        # st.subheader("Spectrogram Comparison")
+                        # spectrogram_fig = compare_spectrograms(ideal_audio, comparison_audio)
+                        # st.plotly_chart(spectrogram_fig, use_container_width=True)
 
                         # Audio Score Comparison details
                         with st.expander("Detailed Audio Score Comparison"):
