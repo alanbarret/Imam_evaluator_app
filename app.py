@@ -193,7 +193,7 @@ def compare_texts(ideal_text, comparison_text):
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are a text comparison assistant. Compare the following two text chunks, where the first is the ideal text and the second is the text to be compared. Highlight the differences and provide feedback on how the second text can be improved to match the ideal text."},
+                    {"role": "system", "content": "You are a text comparison assistant. Compare the following two text chunks, where the first is the ideal text and the second is the text to be compared. Highlight the differences and provide feedback on how the second text can be improved to match the ideal text. give response in arabic"},
                     {"role": "user", "content": f"Ideal text chunk: {ideal_chunk}\nComparison text chunk: {comparison_chunk}"}
                 ]
             )
@@ -864,15 +864,15 @@ def main():
                             st.info("The following differences are calculated by subtracting the ideal score from the comparison score for each category. Positive values mean the comparison score is higher than the ideal score.")
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.metric("Overall Difference", f"{float(overall_diff):.2f}", delta=f"{'Higher' if float(overall_diff) > 0 else 'Lower'}")
-                                st.metric("Pitch Difference", f"{float(pitch_diff):.2f}", delta=f"{'Higher' if float(pitch_diff) > 0 else 'Lower'}")
+                                st.metric("Overall Difference", f"{float(overall_diff):.2f}%", delta=f"{'Higher' if float(overall_diff) > 0 else 'Lower'}")
+                                st.metric("Pitch Difference", f"{float(pitch_diff):.2f}%", delta=f"{'Higher' if float(pitch_diff) > 0 else 'Lower'}")
                                 st.caption("Calculated from the median pitch of non-zero magnitudes in the audio")
                             with col2:
-                                st.metric("Tone Difference", f"{float(tone_diff):.2f}", delta=f"{'Higher' if float(tone_diff) > 0 else 'Lower'}")
+                                st.metric("Tone Difference", f"{float(tone_diff):.2f}%", delta=f"{'Higher' if float(tone_diff) > 0 else 'Lower'}")
                                 st.caption("Based on spectral centroid, representing audio brightness")
-                                st.metric("Rhythm Difference", f"{float(rhythm_diff):.2f}", delta=f"{'Higher' if float(rhythm_diff) > 0 else 'Lower'}")
+                                st.metric("Rhythm Difference", f"{float(rhythm_diff):.2f}%", delta=f"{'Higher' if float(rhythm_diff) > 0 else 'Lower'}")
                                 st.caption("Derived from the tempo of the audio")
-                                st.metric("Energy Difference", f"{float(energy_diff):.2f}", delta=f"{'Higher' if float(energy_diff) > 0 else 'Lower'}")
+                                st.metric("Energy Difference", f"{float(energy_diff):.2f}%", delta=f"{'Higher' if float(energy_diff) > 0 else 'Lower'}")
                                 st.caption("Computed from the root mean square energy of the audio")
                                         # Compare pronunciation
                         with st.spinner("Analyzing pronunciation..."):
@@ -913,10 +913,10 @@ def main():
                             st.subheader("Text Similarity Analysis")
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.metric("Similarity to Ideal", f"{similarity}%")
+                                st.metric("Similarity to Ideal", f"{similarity:.2f}%")
                             with col2:
-                                overall_score = similarity if similarity < 40 else calculate_overall_score(similarity, overall_diff)
-                                st.metric("Overall Score", f"{overall_score}%")
+                                overall_score = similarity if similarity < 30 else calculate_overall_score(similarity, overall_diff)
+                                st.metric("Overall Score", f"{overall_score:.2f}%")
                             
                             with st.expander("Detailed Comparison and Feedback"):
                                 st.markdown(comparison, unsafe_allow_html=True)
