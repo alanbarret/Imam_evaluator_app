@@ -898,13 +898,13 @@ def main():
                             os.remove(comparison_temp_path)
                             f_len = min(len(f1), len(f2))
                             # print("fingerprint_distance",fingerprint_distance(f1, f2, f_len))
-                            similarity =  fingerprint_distance(f1, f2, f_len)
+                            similarity = (fuzz.ratio(f1, f2) + fuzz.ratio(ideal_text, comparison_text)) / 2 
                             st.subheader("Text Similarity Analysis")
                             col1, col2 = st.columns(2)
                             with col1:
                                 st.metric("Similarity to Ideal", f"{similarity:.2f}%")
                             with col2:
-                                overall_score = similarity if similarity < 30 else calculate_overall_score(similarity, overall_diff)
+                                overall_score = similarity if similarity < 40 else calculate_overall_score(similarity, overall_diff)
                                 st.metric("Overall Score", f"{overall_score:.2f}%")
                             
                             with st.expander("Detailed Comparison and Feedback"):
