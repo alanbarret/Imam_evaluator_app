@@ -677,13 +677,15 @@ def highlight_diff(ideal_text, comparison_text):
     highlighted_diff = []
 
     for word in diff:
-        if word.startswith('+'):
+        if word.startswith('-'):
             # Changed text (corrected in comparison_text)
-            highlighted_diff.append(f'<span style="background-color: #ffde64; color:#000" title="Changed: {word[2:]}">{word[2:]}</span>')
+            highlighted_diff.append(f'<span style="background-color: #ffde64; color:#000; font-weight: bold; border-radius: 3px; padding: 2px;" title="Changed: {word[2:]}">{word[2:]}</span>')
         else:
             highlighted_diff.append(word[2:])
 
     return ' '.join(highlighted_diff)
+
+
 
 # Streamlit app
 def main():
@@ -767,13 +769,13 @@ def main():
                    
                     with col1:
                         st.subheader("Original PDF")
-                        st.markdown(f'<embed src="data:application/pdf;base64,{base64.b64encode(ideal_pdf.read()).decode()}" width="100%" height="600px" style="border: none;"></embed>', unsafe_allow_html=True)
+                        st.markdown(f'<embed src="data:application/pdf;base64,{base64.b64encode(ideal_pdf.read()).decode()}" width="100%" height="600px" type="application/pdf" style="border: none;"></embed>', unsafe_allow_html=True)
                     with col2:
                         st.subheader("Transcribed Text (from Audio)")
                         st.markdown(f'<div style="border: 1px solid #ddd; padding: 10px; height: 600px; overflow-y: auto;">{comparison_text}</div>', unsafe_allow_html=True)
                     # Display texts with highlighted differences
                     st.subheader("Transcription Comparison")
-                    highlighted_diff = highlight_diff(ideal_text, comparison_text)
+                    highlighted_diff = highlight_diff(ideal_text, comparison_text.replace("+", "").replace("-", ""))
                     st.markdown(
                         f"""
                         <div style="border: 1px solid #ffcccb; padding: 10px; border-radius: 10px; max-height: 300px; overflow-y: auto;">
