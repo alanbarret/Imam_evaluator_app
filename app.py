@@ -775,7 +775,7 @@ def main():
                         st.markdown(f'<div style="border: 1px solid #ddd; padding: 10px; height: 600px; overflow-y: auto;">{comparison_text}</div>', unsafe_allow_html=True)
                     # Display texts with highlighted differences
                     st.subheader("Transcription Comparison")
-                    highlighted_diff = highlight_diff(ideal_text, comparison_text.replace("+", "").replace("-", ""))
+                    highlighted_diff = highlight_diff(ideal_text, comparison_text)
                     st.markdown(
                         f"""
                         <div style="border: 1px solid #ffcccb; padding: 10px; border-radius: 10px; max-height: 300px; overflow-y: auto;">
