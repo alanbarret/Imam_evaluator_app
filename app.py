@@ -687,7 +687,7 @@ def highlight_diff(ideal_text, comparison_text):
 
 # Streamlit app
 def main():
-    
+
     st.set_page_config(page_title="Imam Evaluator App", page_icon="🕌", layout="wide")
     
     # Custom CSS for better styling
@@ -767,7 +767,7 @@ def main():
                    
                     with col1:
                         st.subheader("Original PDF")
-                        st.markdown(f'<iframe src="data:application/pdf;base64,{base64.b64encode(ideal_pdf.read()).decode()}" width="100%" height="600px" style="border: none;"></iframe>', unsafe_allow_html=True)
+                        st.markdown(f'<embed src="data:application/pdf;base64,{base64.b64encode(ideal_pdf.read()).decode()}" width="100%" height="600px" style="border: none;"></embed>', unsafe_allow_html=True)
                     with col2:
                         st.subheader("Transcribed Text (from Audio)")
                         st.markdown(f'<div style="border: 1px solid #ddd; padding: 10px; height: 600px; overflow-y: auto;">{comparison_text}</div>', unsafe_allow_html=True)
