@@ -139,6 +139,7 @@ def get_fingerprint(filename: str) -> List[int]:
         print(f"Error parsing fpcalc output: {e}")
         return []
 
+from fuzzywuzzy import fuzz
 
 def fingerprint_distance(
     f1: List[int],
@@ -160,28 +161,9 @@ def fingerprint_distance(
         the distance between two fingerprints. This value
         represents distance as a percentage.
     """
-    # Ensure the length does not exceed the actual length of the fingerprints
-    fingerprint_len = min(fingerprint_len, len(f1), len(f2))
+    similarity = fuzz.ratio(f1, f2)
     
-    # Calculate Euclidean distance between the two fingerprints
-    squared_diff_sum = sum((f1[i] - f2[i]) ** 2 for i in range(fingerprint_len))
-    distance = math.sqrt(squared_diff_sum)
-    
-    # Calculate the maximum possible distance for normalization
-    max_value = max(max(f1), max(f2))
-    min_value = min(min(f1), min(f2))
-    max_possible_distance = math.sqrt(fingerprint_len * (max_value - min_value) ** 2)
-    
-    # Normalize the distance
-    if max_possible_distance == 0:
-        normalized_distance = 0.0
-    else:
-        normalized_distance = distance / max_possible_distance
-    
-    # Clip the distance to the range [0, 1]
-    normalized_distance = min(max(normalized_distance, 0.0), 1.0)
-    
-    return normalized_distance
+    return similarity
 
 
 
@@ -916,7 +898,7 @@ def main():
                             os.remove(comparison_temp_path)
                             f_len = min(len(f1), len(f2))
                             # print("fingerprint_distance",fingerprint_distance(f1, f2, f_len))
-                            similarity = 100 * (1 - fingerprint_distance(f1, f2, f_len))
+                            similarity =  fingerprint_distance(f1, f2, f_len)
                             st.subheader("Text Similarity Analysis")
                             col1, col2 = st.columns(2)
                             with col1:
