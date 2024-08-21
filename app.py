@@ -104,6 +104,8 @@ def analyze_audio(audio_file):
 
 from operator import xor
 from typing import List
+import acoustid
+import chromaprint
 
 
 
@@ -126,11 +128,16 @@ def get_fingerprint(filename: str) -> List[int]:
         
         if os.name == 'nt':  # Check if the OS is Windows
             result = subprocess.run(['fpcalc.exe', filename, '-raw'], capture_output=True, text=True, check=True)
+            fingerprint_str = result.stdout.strip().split('FINGERPRINT=')[1]
+            fingerprint = json.loads(f'[{fingerprint_str}]')
+            print("fingerprint",fingerprint)
+            return fingerprint
         else:  # For non-Windows systems
-            result = subprocess.run(['fpcalc', filename, '-raw'], capture_output=True, text=True, check=True)
-        fingerprint_str = result.stdout.strip().split('FINGERPRINT=')[1]
-        fingerprint = json.loads(f'[{fingerprint_str}]')
-        return fingerprint
+            # result = subprocess.run(['fpcalc', filename, '-raw'], capture_output=True, text=True, check=True)
+            _, encoded = acoustid.fingerprint_file(filename)
+            fingerprint, _ = chromaprint.decode_fingerprint(encoded)
+            return fingerprint
+ 
     except subprocess.CalledProcessError as e:
         print(f"Error running fpcalc: {e}")
         return []
@@ -149,9 +156,7 @@ def fingerprint_distance(
 
     Args:
         f1: The first fingerprint.
-
         f2: The second fingerprint.
-
         fingerprint_len: Only compare the first `fingerprint_len`
             integers in each fingerprint. This is useful
             when comparing audio samples of a different length.
@@ -159,22 +164,30 @@ def fingerprint_distance(
     Returns:
         Returns a number between 0.0 and 1.0 representing
         the distance between two fingerprints. This value
-        represents distance as like a percentage.
+        represents distance as a percentage.
     """
-    max_hamming_weight = 32 * fingerprint_len
-    hamming_weight = sum(
-        sum(
-            c == "1"
-            for c in bin(xor(f1[i], f2[i]))
-        )
-        for i in range(fingerprint_len)
-    )
-    # print(f1,f2,hamming_weight, max_hamming_weight)
-    linear_distance = hamming_weight / max_hamming_weight
-    # Adjust the distance calculation to make unrelated audio have a lower distance
-    adjusted_distance = 1 - (1 - linear_distance) ** 2
-    return adjusted_distance
-
+    # Ensure the length does not exceed the actual length of the fingerprints
+    fingerprint_len = min(fingerprint_len, len(f1), len(f2))
+    
+    # Calculate Euclidean distance between the two fingerprints
+    squared_diff_sum = sum((f1[i] - f2[i]) ** 2 for i in range(fingerprint_len))
+    distance = math.sqrt(squared_diff_sum)
+    
+    # Calculate the maximum possible distance for normalization
+    max_value = max(max(f1), max(f2))
+    min_value = min(min(f1), min(f2))
+    max_possible_distance = math.sqrt(fingerprint_len * (max_value - min_value) ** 2)
+    
+    # Normalize the distance
+    if max_possible_distance == 0:
+        normalized_distance = 0.0
+    else:
+        normalized_distance = distance / max_possible_distance
+    
+    # Clip the distance to the range [0, 1]
+    normalized_distance = min(max(normalized_distance, 0.0), 1.0)
+    
+    return normalized_distance
 
 
 
