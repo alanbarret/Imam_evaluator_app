@@ -169,7 +169,7 @@ def fingerprint_distance(
         )
         for i in range(fingerprint_len)
     )
-    print(f1,f2,hamming_weight, max_hamming_weight)
+    # print(f1,f2,hamming_weight, max_hamming_weight)
     linear_distance = hamming_weight / max_hamming_weight
     # Adjust the distance calculation to make unrelated audio have a lower distance
     adjusted_distance = 1 - (1 - linear_distance) ** 2
